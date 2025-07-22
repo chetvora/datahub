@@ -1,0 +1,24 @@
+# # JetBrains IDE
+.idea/
+# Node
+node_modules/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+.env
+
+# React
+frontend/react/node_modules/
+frontend/react/build/
+
+# Kubernetes
+*.yaml.swp
+
+# VSCode
+.vscode/
+
+# macOS
+.DS_Store
+

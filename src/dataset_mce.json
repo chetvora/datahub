@@ -1,0 +1,113 @@
+{
+  "auditHeader": null,
+  "proposedSnapshot": {
+    "com.linkedin.pegasus2avro.metadata.snapshot.DatasetSnapshot": {
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:file,sample-dataset,PROD)",
+      "aspects": [
+        {
+          "com.linkedin.pegasus2avro.common.Ownership": {
+            "owners": [
+              {
+                "owner": "urn:li:corpuser:datahub",
+                "type": "DATAOWNER"
+              }
+            ],
+            "lastModified": {
+              "time": 0,
+              "actor": "urn:li:corpuser:datahub"
+            }
+          }
+        },
+        {
+          "com.linkedin.pegasus2avro.schema.SchemaMetadata": {
+            "schemaName": "sample-dataset-schema",
+            "platform": "urn:li:dataPlatform:file",
+            "version": 0,
+            "created": {
+              "time": 0,
+              "actor": "urn:li:corpuser:datahub"
+            },
+            "lastModified": {
+              "time": 0,
+              "actor": "urn:li:corpuser:datahub"
+            },
+            "hash": "",
+            "platformSchema": {
+              "com.linkedin.pegasus2avro.schema.OtherSchema": {
+                "rawSchema": "N/A"
+              }
+            },
+            "fields": [
+              {
+                "fieldPath": "id",
+                "nativeDataType": "STRING",
+                "type": {
+                  "type": {
+                    "com.linkedin.pegasus2avro.schema.StringType": {}
+                  }
+                },
+                "description": "The unique identifier.",
+                "nullable": false,
+                "recursive": false
+              },
+              {
+                "fieldPath": "name",
+                "nativeDataType": "STRING",
+                "type": {
+                  "type": {
+                    "com.linkedin.pegasus2avro.schema.StringType": {}
+                  }
+                },
+                "description": "Name of the entity.",
+                "nullable": true,
+                "recursive": false
+              }
+            ],
+            "primaryKeys": ["id"]
+          }
+        },
+        {
+          "com.linkedin.pegasus2avro.dataset.DatasetProperties": {
+            "description": "This is a sample dataset ingested from a JSON MCE file.",
+            "name": "Sample MCE Dataset",
+            "qualifiedName": "sample-dataset",
+            "customProperties": {
+                "environment": "PROD",
+                "data_sensitivity": "CONFIDENTIAL"
+            }
+          }
+        },
+        {
+            "com.linkedin.pegasus2avro.common.GlobalTags": {
+                "tags": [
+                    {
+                        "tag": "urn:li:tag:SampleData"
+                    },
+                    {
+                        "tag": "urn:li:tag:Example"
+                    }
+                ]
+            }
+        },
+        {
+            "com.linkedin.pegasus2avro.common.GlossaryTerms": {
+                "terms": [
+                    {
+                        "urn": "urn:li:glossaryTerm:SampleTerm.TermA",
+                        "auditStamp": {
+                            "time": 0,
+                            "actor": "urn:li:corpuser:datahub"
+                        }
+                    }
+                ],
+                "auditStamp": {
+                    "time": 0,
+                    "actor": "urn:li:corpuser:datahub"
+                }
+            }
+        }
+      ]
+    }
+  },
+  "proposedDelta": null
+}

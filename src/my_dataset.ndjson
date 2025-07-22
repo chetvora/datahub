@@ -1,0 +1,29 @@
+{
+  "entityType": "dataset",
+  "entityUrn": "urn:li:dataset:(urn:li:dataPlatform:mysql,mydb.mytable,PROD)",
+  "aspectName": "schemaMetadata",
+  "aspect": {
+    "schemaName": "mytable",
+    "platform": "urn:li:dataPlatform:mysql",
+    "version": 0,
+    "fields": [
+      {
+        "fieldPath": "customer_id",
+        "description": "Unique customer identifier",
+        "nativeDataType": "VARCHAR",
+        "type": {
+          "type": "string"
+        }
+      },
+      {
+        "fieldPath": "purchase_date",
+        "description": "Date of purchase",
+        "nativeDataType": "DATE",
+        "type": {
+          "type": "date"
+        }
+      }
+    ]
+  }
+}
+

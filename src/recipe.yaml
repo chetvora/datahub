@@ -1,0 +1,13 @@
+source:
+  type: "file"
+  config:
+    path: ./dataset_mce2.json # Path to your MCE file
+
+# Sink configuration - assuming your DataHub GMS is running locally
+# Adjust the server URL if your DataHub is deployed elsewhere or if you are using DataHub Cloud
+sink:
+  type: "datahub-rest"
+  config:
+    server: "http://localhost:8080" # Or your DataHub GMS endpoint
+    # If using DataHub Cloud or have authentication enabled, you'll need a token:
+    # token: "your-access-token"

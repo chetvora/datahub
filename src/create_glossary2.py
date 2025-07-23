@@ -8,132 +8,144 @@ import re
 # YOU MUST UPDATE THESE VARIABLES TO MATCH YOUR ENVIRONMENT
 # =====================================================================================
 
-# 1. Define your main glossary's name and URN
-GLOSSARY_NAME = "CDASPlatformGlossary"
-GLOSSARY_URN = f"urn:li:glossaryNode:{GLOSSARY_NAME}"
+# 1. Define your main glossary's name
+GLOSSARY_NAME = "MyPlatformGlossary"
 
-# 2. Define how to build the URN for your datasets from the Excel tab name
-#    Example for a Snowflake table: urn:li:dataset:(urn:li:dataPlatform:snowflake,your_db.your_schema.TABLE_NAME,PROD)
-DATA_PLATFORM = "my-platform"  # e.g., "snowflake", "bigquery", "postgres"
-URN_PATTERN = "my_database.my_schema.{table_name}"  # e.g., "prod_db.public.{table_name}"
+# 2. Jira URL structure
+JIRA_URL_PREFIX = "https://your-jira-instance.atlassian.net/browse/"
+
+# 3. Configuration for DataStore1
+DATASTORE1_PLATFORM = "snowflake"  # e.g., "snowflake", "bigquery", "postgres"
+DATASTORE1_URN_PATTERN = "prod_db.public.{table_name}"
+
+# 4. Configuration for DataStore2 (if you have one)
+# If a row has a value in 'DataStore2 Column Name', it will use this config.
+DATASTORE2_PLATFORM = "postgres"
+DATASTORE2_URN_PATTERN = "analytics_db.reporting.{table_name}"
+
 ENVIRONMENT = "PROD"
-
-# 3. Define the file paths and the user performing the ingestion
-EXCEL_FILE_PATH = 'glossary_sample.xlsx'  # The name of your Excel file
-OUTPUT_MCE_FILE = 'glossary_mce.json'
-DATAHUB_ACTOR = 'urn:li:corpuser:datahub'  # The user URN
+EXCEL_FILE_PATH = 'data_dictionary.xlsx'  # The name of your Excel file
+OUTPUT_MCE_FILE = 'generated_mce.json'
+DATAHUB_ACTOR = 'urn:li:corpuser:datahub'
 
 
 # =====================================================================================
 # --- Helper Functions (No changes needed below this line) ---
 # =====================================================================================
 
-def generate_term_urn(term_name):
-    """Generates a URN-friendly string from a term name."""
-    clean_name = re.sub(r'[^a-zA-Z0-9_-]', '', term_name.replace(' ', ''))
-    return f"urn:li:glossaryTerm:{clean_name}"
+def generate_urn(prefix, name):
+    clean_name = re.sub(r'[^a-zA-Z0-9_-]', '', str(name).replace(' ', ''))
+    return f"urn:li:{prefix}:{clean_name}"
 
 
 def create_main_glossary_node_mce():
-    """Creates the MCE for the top-level glossary node."""
-    return {
-        "auditHeader": None,
-        "proposedSnapshot": {
-            "com.linkedin.pegasus2avro.metadata.snapshot.GlossaryNodeSnapshot": {
-                "urn": GLOSSARY_URN,
-                "aspects": [
-                    {"com.linkedin.pegasus2avro.glossary.GlossaryNodeInfo": {"name": GLOSSARY_NAME}},
-                    {"com.linkedin.pegasus2avro.common.Ownership": {
-                        "owners": [{"owner": DATAHUB_ACTOR, "type": "DATAOWNER"}]}}
-                ]
-            }
-        }
-    }
+    return {"auditHeader": None, "proposedSnapshot": {
+        "com.linkedin.pegasus2avro.metadata.snapshot.GlossaryNodeSnapshot": {
+            "urn": generate_urn("glossaryNode", GLOSSARY_NAME),
+            "aspects": [{"com.linkedin.pegasus2avro.glossary.GlossaryNodeInfo": {"name": GLOSSARY_NAME}}]}}}
 
 
 def create_glossary_term_mce(row):
-    """Creates an MCE for a child Glossary Term that belongs to the main node."""
-    term_urn = generate_term_urn(row['Attribute Name'])
-    return {
-        "auditHeader": None,
-        "proposedSnapshot": {
-            "com.linkedin.pegasus2avro.metadata.snapshot.GlossaryTermSnapshot": {
-                "urn": term_urn,
-                "aspects": [
-                    {
-                        "com.linkedin.pegasus2avro.glossary.GlossaryTermInfo": {
-                            "definition": str(row['Definition']),
-                            "parentNode": GLOSSARY_URN,  # Links term to the main glossary node
-                            "termSource": "CUSTOM_DATA_DICTIONARY"
-                        }
-                    }
-                ]
-            }
-        }
-    }
+    term_urn = generate_urn("glossaryTerm", row['Attribute/Column Name'])
+
+    # --- Build a rich definition ---
+    definition_parts = []
+    if pd.notna(row.get('Definition')):
+        definition_parts.append(str(row['Definition']))
+    if pd.notna(row.get('Syonym')):
+        definition_parts.append(f"\n\n**Synonyms:** {row['Syonym']}")
+    if pd.notna(row.get('List of Values')):
+        definition_parts.append(f"\n\n**Accepted Values:**\n{row['List of Values']}")
+
+    # --- Build Links ---
+    links = []
+    if pd.notna(row.get('Reference Link')):
+        links.append({"url": str(row['Reference Link']), "description": "Reference Link"})
+    if pd.notna(row.get('Jira Reference#')):
+        jira_url = f"{JIRA_URL_PREFIX}{row['Jira Reference#']}"
+        links.append({"url": jira_url, "description": "Jira Ticket"})
+
+    # --- Build Tags ---
+    tags = []
+    if pd.notna(row.get('Originating System')):
+        tags.append({"tag": generate_urn("tag", f"Source:{row['Originating System']}")})
+
+    # --- Assemble Aspects ---
+    aspects = [
+        {"com.linkedin.pegasus2avro.glossary.GlossaryTermInfo": {
+            "name": str(row['Full Name']),
+            "definition": "\n".join(definition_parts),
+            "parentNode": generate_urn("glossaryNode", GLOSSARY_NAME)
+        }}
+    ]
+    if links:
+        aspects.append({"com.linkedin.pegasus2avro.common.InstitutionalMemory": {"elements": links}})
+    if tags:
+        aspects.append({"com.linkedin.pegasus2avro.common.GlobalTags": {"tags": tags}})
+
+    return {"auditHeader": None, "proposedSnapshot": {
+        "com.linkedin.pegasus2avro.metadata.snapshot.GlossaryTermSnapshot": {"urn": term_urn, "aspects": aspects}}}
 
 
 def create_editable_schema_metadata_mce(dataset_urn, field_docs):
-    """Creates an MCE to document dataset columns."""
-    return {
-        "auditHeader": None,
-        "proposedSnapshot": {
-            "com.linkedin.pegasus2avro.metadata.snapshot.DatasetSnapshot": {
-                "urn": dataset_urn,
-                "aspects": [
-                    {
-                        "com.linkedin.pegasus2avro.schema.EditableSchemaMetadata": {
-                            "editableSchemaFieldInfo": field_docs,
-                            "created": {"time": int(time.time() * 1000), "actor": DATAHUB_ACTOR},
-                        }
-                    }
-                ]
-            }
-        }
-    }
+    return {"auditHeader": None, "proposedSnapshot": {
+        "com.linkedin.pegasus2avro.metadata.snapshot.DatasetSnapshot": {"urn": dataset_urn, "aspects": [{
+                                                                                                            "com.linkedin.pegasus2avro.schema.EditableSchemaMetadata": {
+                                                                                                                "editableSchemaFieldInfo": field_docs,
+                                                                                                                "created": {
+                                                                                                                    "time": int(
+                                                                                                                        time.time() * 1000),
+                                                                                                                    "actor": DATAHUB_ACTOR}}}]}}}
 
 
 def main():
-    """Main function to read all Excel sheets and generate MCEs."""
     all_mces = [create_main_glossary_node_mce()]
     created_term_urns = set()
 
+    # This will hold all column docs, grouped by the final dataset URN
+    # e.g., {"urn:li:dataset...": [field_doc1, field_doc2]}
+    dataset_docs = {}
+
     try:
-        xls = pd.ExcelFile(EXCEL_FILE_PATH)
-        for sheet_name in xls.sheet_names:
-            print(f"Processing sheet: {sheet_name}...")
-            df = pd.read_excel(xls, sheet_name=sheet_name)
+        df = pd.read_excel(EXCEL_FILE_PATH)  # Assuming one sheet now
+        for _, row in df.iterrows():
+            if not pd.notna(row.get('Attribute/Column Name')):
+                continue
 
-            # Construct the Dataset URN for this sheet/table
-            table_name_in_urn = URN_PATTERN.format(table_name=sheet_name)
-            dataset_urn = f"urn:li:dataset:(urn:li:dataPlatform:{DATA_PLATFORM},{table_name_in_urn},{ENVIRONMENT})"
+            # 1. Create the Glossary Term MCE (if not already created)
+            term_urn = generate_urn("glossaryTerm", row['Attribute/Column Name'])
+            if term_urn not in created_term_urns:
+                all_mces.append(create_glossary_term_mce(row))
+                created_term_urns.add(term_urn)
 
-            field_docs_for_dataset = []
+            # --- Prepare documentation for both datastores ---
+            table_name = row.get('physical dictionary table_name')
+            if not pd.notna(table_name):
+                continue
 
-            for _, row in df.iterrows():
-                if not all(pd.notna(row.get(col)) for col in ['Attribute Name', 'Column Name', 'Definition']):
-                    print(f"  Skipping row due to missing data: {row.to_dict()}")
-                    continue
+            # Handle DataStore 1
+            ds1_col_name = row.get('DataStore1 Attribute/Column physical_name')
+            if pd.notna(ds1_col_name):
+                ds1_urn = f"urn:li:dataset:(urn:li:dataPlatform:{DATASTORE1_PLATFORM},{DATASTORE1_URN_PATTERN.format(table_name=table_name)},{ENVIRONMENT})"
+                if ds1_urn not in dataset_docs:
+                    dataset_docs[ds1_urn] = []
+                dataset_docs[ds1_urn].append(
+                    {"fieldPath": str(ds1_col_name), "glossaryTerms": {"terms": [{"urn": term_urn}]}})
 
-                # 1. Create the Glossary Term MCE
-                term_urn = generate_term_urn(row['Attribute Name'])
-                if term_urn not in created_term_urns:
-                    all_mces.append(create_glossary_term_mce(row))
-                    created_term_urns.add(term_urn)
+            # Handle DataStore 2
+            ds2_col_name = row.get('DataStore2 Column Name')
+            if pd.notna(ds2_col_name):
+                ds2_urn = f"urn:li:dataset:(urn:li:dataPlatform:{DATASTORE2_PLATFORM},{DATASTORE2_URN_PATTERN.format(table_name=table_name)},{ENVIRONMENT})"
+                if ds2_urn not in dataset_docs:
+                    dataset_docs[ds2_urn] = []
+                dataset_docs[ds2_urn].append(
+                    {"fieldPath": str(ds2_col_name), "glossaryTerms": {"terms": [{"urn": term_urn}]}})
 
-                # 2. Prepare the documentation for this specific dataset field
-                field_doc = {
-                    "fieldPath": str(row['Column Name']),
-                    "description": str(row['Definition']),
-                    "glossaryTerms": {"terms": [{"urn": term_urn}]}
-                }
-                field_docs_for_dataset.append(field_doc)
+        # 2. After processing all rows, create the MCEs for dataset documentation
+        for dataset_urn, field_docs in dataset_docs.items():
+            all_mces.append(create_editable_schema_metadata_mce(dataset_urn, field_docs))
 
-            # 3. After processing all rows for the sheet, create the single dataset documentation MCE
-            if field_docs_for_dataset:
-                all_mces.append(create_editable_schema_metadata_mce(dataset_urn, field_docs_for_dataset))
-
-        # Write all MCEs to a single file
+        # Write all MCEs to the output file
         with open(OUTPUT_MCE_FILE, 'w') as f:
             json.dump(all_mces, f, indent=2)
 
